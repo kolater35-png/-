@@ -1,0 +1,41 @@
+name: Build Nebula Pro
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fix Broken Pipe (Expand Memory)
+        run: |
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev ccache libltdl-dev \
+          patch python3-setuptools
+          pip install --upgrade pip
+          pip install buildozer "cython<3.0" virtualenv
+
+      - name: Build with Buildozer
+        run: |
+          ulimit -n 4096
+          yes | buildozer android debug
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nebula-Evolution-Pro
+          path: bin/*.apk
+          
