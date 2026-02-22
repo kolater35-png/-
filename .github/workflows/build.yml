@@ -1,0 +1,47 @@
+name: Build Nebula Pro Max
+on: [push, pull_request]
+
+jobs:
+  android:
+    name: Сборка Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4  # Обновили до v4
+
+      - name: Сборка через Buildozer
+        uses: ArtemSBulat/buildozer-action@v1.6.1 # Используем конкретную стабильную версию
+        with:
+          command: buildozer android debug
+          repository_root: .
+
+      - name: Сохранение APK
+        uses: actions/upload-artifact@v4 # Исправлено на v4!
+        with:
+          name: Nebula-Android-Build
+          path: bin/*.apk
+
+  windows:
+    name: Сборка Windows EXE
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4 # Обновили до v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5 # Обновили до v5
+        with:
+          python-version: '3.9'
+          
+      - name: Install Dependencies
+        run: |
+          pip install kivy==2.1.0 kivymd==1.1.1 requests numpy pyinstaller
+          
+      - name: Build EXE
+        run: |
+          pyinstaller --onefile --noconsole --name NebulaEvolution main.py
+          
+      - name: Сохранение EXE
+        uses: actions/upload-artifact@v4 # Исправлено на v4!
+        with:
+          name: Nebula-Windows-Build
+          path: dist/*.exe
+          
