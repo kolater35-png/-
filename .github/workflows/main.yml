@@ -1,0 +1,41 @@
+name: Build Nebula Stable
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android
+          # Мы больше не создаем swap вручную, чтобы избежать ошибки "Text file busy"
+
+      - name: Install Buildozer and Cython
+        run: |
+          pip install --user --upgrade buildozer "Cython<3.0.0" virtualenv
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential git ffmpeg libsdl2-dev libsdl2-image-dev \
+          libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev \
+          libavformat-dev libavcodec-dev zlib1g-dev libgstreamer1.0-dev \
+          libsqlite3-dev sqlite3 libssl-dev libffi-dev autoconf automake libtool
+
+      - name: Build with Buildozer
+        run: |
+          export PATH=$PATH:~/.local/bin
+          # Ограничиваем ресурсы Gradle, чтобы билд не убил OOM Killer
+          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2G -Dorg.gradle.workers.max=1"
+          buildozer android debug
+          
