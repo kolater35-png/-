@@ -1,0 +1,59 @@
+name: Build Nebula AI APK
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Extreme Cleanup
+        run: |
+          # Убиваем любые фоновые процессы Java, которые могут держать файлы
+          sudo pkill -9 java || true
+          docker image prune -af
+          sudo rm -rf /usr/share/dotnet /opt/ghc "/usr/local/share/boost"
+          sudo swapoff -a || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Buildozer and Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libsqlite3-dev lld python3-dev libffi-dev libssl-dev zip autoconf automake libtool
+          pip install --upgrade pip
+          pip install "Cython<3.0.0" wheel virtualenv buildozer
+
+      - name: Build with Buildozer
+        run: |
+          export PATH=$PATH:~/.local/bin
+          # Явно указываем пути к Android SDK для GitHub Actions
+          export ANDROID_SDK_ROOT=$ANDROID_HOME
+          export ANDROID_NDK_ROOT=$ANDROID_HOME/ndk-bundle
+          
+          export GRADLE_OPTS="-Xmx6g -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1"
+          
+          rm -rf .buildozer/
+          # Запуск сборки
+          yes | buildozer -v android debug
+        env:
+          BUILDOZER_ALLOW_ORG_NAME_START: 1
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nebula-Final-V7
+          path: bin/*.apk
+          
