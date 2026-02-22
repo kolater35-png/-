@@ -1,0 +1,295 @@
+# -*- coding: utf-8: -*-
+import os, sys, threading, time, json, traceback, platform, shutil
+import requests
+from io import StringIO
+from kivy.lang import Builder
+from kivy.clock import Clock, mainthread
+from kivy.animation import Animation
+from kivy.properties import StringProperty, DictProperty, ObjectProperty
+from kivymd.app import MDApp
+from kivymd.uix.snackbar import Snackbar
+from kivymd.uix.filemanager import MDFileManager
+from kivymd.uix.dialog import MDDialog
+from kivymd.uix.button import MDFlatButton, MDFillRoundFlatButton
+from kivymd.uix.list import OneLineIconListItem
+
+from kivy.utils import platform as kivy_platform
+if kivy_platform == 'android':
+    from android.permissions import request_permissions, Permission
+
+KV = '''
+<ModernCard@MDCard>:
+    padding: "16dp"
+    radius: [24, 24, 24, 24]
+    elevation: 1
+    md_bg_color: "#1C1B1F"
+    line_color: "#49454F"
+
+MDScreenManager:
+    id: screen_manager
+    MDScreen:
+        name: "intro"
+        md_bg_color: "#000000"
+        MDBoxLayout:
+            orientation: "vertical"
+            Widget:
+            Image:
+                id: intro_img
+                source: "serpent.png"
+                size_hint: None, None
+                size: "280dp", "280dp"
+                pos_hint: {"center_x": .5}
+                opacity: 0
+            MDLabel:
+                text: "NEBULA MASTER v7"
+                halign: "center"
+                theme_text_color: "Custom"
+                text_color: "#D0BCFF"
+                font_style: "H4"
+                bold: True
+            Widget:
+
+    MDScreen:
+        name: "main"
+        md_bg_color: "#1C1B1F"
+        
+        MDBoxLayout:
+            orientation: "vertical"
+            
+            MDTopAppBar:
+                title: "Nebula Evolution"
+                elevation: 0
+                md_bg_color: "#1C1B1F"
+                left_action_items: [["menu", lambda x: nav_drawer.set_state("open")]]
+                right_action_items: [["folder-cog", lambda x: app.open_file_manager()], ["robot", lambda x: app.toggle_helper()]]
+
+            MDBottomNavigation:
+                id: b_nav
+                panel_color: "#1C1B1F"
+                selected_color_background: "#4F378B"
+                
+                MDBottomNavigationItem:
+                    name: 'ide'
+                    text: 'Editor'
+                    icon: 'code-braces'
+                    
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        padding: "16dp"
+                        spacing: "12dp"
+                        
+                        MDBoxLayout:
+                            size_hint_y: None
+                            height: "50dp"
+                            spacing: "8dp"
+                            MDFillRoundFlatButton:
+                                text: "SAVE AS"
+                                icon: "content-save-move"
+                                on_release: app.open_file_manager(mode="save")
+                            MDFillRoundFlatButton:
+                                text: "AUTO-PATH"
+                                icon: "folder-sync"
+                                on_release: app.open_file_manager(mode="folder")
+                            MDFillRoundFlatButton:
+                                text: "ENV"
+                                on_release: app.setup_env()
+
+                        ModernCard:
+                            orientation: "vertical"
+                            MDLabel:
+                                text: app.current_file_label
+                                theme_text_color: "Secondary"
+                                font_style: "Caption"
+                            ScrollView:
+                                MDTextField:
+                                    id: editor
+                                    text: app.saved_code
+                                    multiline: True
+                                    mode: "fill"
+                                    fill_color_normal: "#2B2930"
+                                    on_text: app.on_editor_change(self.text)
+
+                        MDFillRoundFlatButton:
+                            text: "EXECUTE"
+                            icon: "play-circle-outline"
+                            size_hint_x: 1
+                            height: "56dp"
+                            md_bg_color: "#D0BCFF"
+                            text_color: "#381E72"
+                            on_release: app.run_engine()
+
+                MDBottomNavigationItem:
+                    name: 'term'
+                    text: 'Terminal'
+                    icon: 'console'
+                    MDBoxLayout:
+                        md_bg_color: "#000000"
+                        ScrollView:
+                            id: log_scroll
+                            MDLabel:
+                                id: console
+                                text: app.log_data
+                                color: "#00FFC8"
+                                size_hint_y: None
+                                height: self.texture_size[1]
+                                padding: "16dp"
+                                font_name: "Roboto"
+
+        Image:
+            id: s_helper
+            source: "serpent.png"
+            size_hint: None, None
+            size: "220dp", "220dp"
+            pos_hint: {"center_x": 1.5, "center_y": 0.3}
+
+    MDNavigationDrawer:
+        id: nav_drawer
+        radius: (0, 16, 16, 0)
+        md_bg_color: "#1C1B1F"
+        MDBoxLayout:
+            orientation: "vertical"
+            padding: "16dp"
+            spacing: "10dp"
+            MDLabel: text: "STORAGE SETTINGS"; font_style: "H6"; text_color: "#D0BCFF"
+            MDSeparator:
+            MDLabel:
+                text: f"Auto-save Dir:\\n{app.vault['auto_save_path']}"
+                font_style: "Caption"
+                theme_text_color: "Secondary"
+            MDFlatButton: text: "Change Auto-save Folder"; icon: "folder-edit"; on_release: app.open_file_manager(mode="folder")
+            MDFlatButton: text: "Reset To Internal"; icon: "restore"; on_release: app.reset_storage()
+            Widget:
+'''
+
+class NebulaApp(MDApp):
+    log_data = StringProperty("> System Ready...\\n")
+    saved_code = StringProperty("")
+    current_file_label = StringProperty("File: internal_vault/save.py")
+    vault = DictProperty({
+        'auto_save_path': '', 
+        'last_file': '', 
+        'env_path': ''
+    })
+    
+    file_manager = ObjectProperty(None)
+
+    def build(self):
+        self.theme_cls.theme_style = "Dark"
+        self.theme_cls.material_style = "M3"
+        self.theme_cls.primary_palette = "DeepPurple"
+        
+        # Настройка менеджера файлов
+        self.file_manager = MDFileManager(
+            exit_manager=self.exit_manager,
+            select_path=self.select_path,
+        )
+        
+        self.load_data()
+        return Builder.load_string(KV)
+
+    def on_start(self):
+        if kivy_platform == 'android':
+            request_permissions([Permission.CAMERA, Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
+        
+        # Начальное значение папки автосохранения
+        if not self.vault['auto_save_path']:
+            self.vault['auto_save_path'] = self.user_data_dir
+
+        Animation(opacity=1, duration=1).start(self.root.ids.intro_img)
+        Clock.schedule_once(self.finish_intro, 3)
+
+    def finish_intro(self, *args):
+        self.root.ids.screen_manager.current = "main"
+
+    # --- FILE MANAGER LOGIC ---
+    def open_file_manager(self, mode="save"):
+        self.fm_mode = mode # 'save' для выбора файла, 'folder' для выбора папки
+        path = self.vault['auto_save_path'] if self.vault['auto_save_path'] else os.path.expanduser("~")
+        self.file_manager.show(path)
+
+    def select_path(self, path):
+        self.exit_manager()
+        if self.fm_mode == "folder":
+            self.vault['auto_save_path'] = path
+            self.save_data()
+            self.post_log(f"STORAGE: Auto-save folder set to: {path}")
+            Snackbar(text="Auto-save folder updated").open()
+        else:
+            # Сохранить текущий код в выбранный файл
+            try:
+                with open(path, "w", encoding='utf-8') as f:
+                    f.write(self.root.ids.editor.text)
+                self.post_log(f"FILE: Saved to {path}")
+                Snackbar(text="File Saved Successfully").open()
+            except Exception as e:
+                self.post_log(f"ERROR: {str(e)}")
+
+    def exit_manager(self, *args):
+        self.file_manager.close()
+
+    def reset_storage(self):
+        self.vault['auto_save_path'] = self.user_data_dir
+        self.save_data()
+        self.post_log("STORAGE: Reset to internal application memory")
+
+    # --- CORE ENGINE ---
+    def run_engine(self):
+        self.root.ids.b_nav.switch_tab('term')
+        code = self.root.ids.editor.text
+        def work():
+            old_out = sys.stdout
+            res = sys.stdout = StringIO()
+            try:
+                exec(code, {**globals(), 'app': self})
+                out = res.getvalue() or "--- Success ---"
+            except: out = traceback.format_exc()
+            finally: sys.stdout = old_out
+            self.post_log(out)
+        threading.Thread(target=work, daemon=True).start()
+
+    @mainthread
+    def post_log(self, text):
+        self.log_data += f"\\n[{time.strftime('%H:%M:%S')}] {text}"
+        Clock.schedule_once(lambda x: setattr(self.root.ids.log_scroll, 'scroll_y', 0), 0.1)
+
+    def setup_env(self):
+        env_path = os.path.join(self.vault['auto_save_path'], "nebula_env")
+        if not os.path.exists(env_path): os.makedirs(env_path)
+        self.vault['env_path'] = env_path
+        self.save_data()
+        self.post_log(f"ENV: Virtual Space created at {env_path}")
+
+    def on_editor_change(self, text):
+        # Автосохранение при каждом изменении
+        save_dir = self.vault['auto_save_path']
+        full_path = os.path.join(save_dir, "nebula_autosave.py")
+        try:
+            with open(full_path, "w", encoding='utf-8') as f:
+                f.write(text)
+            self.current_file_label = f"Auto-saving: {full_path}"
+        except: pass
+
+    def load_data(self):
+        vp = os.path.join(self.user_data_dir, "vault_v7.json")
+        if os.path.exists(vp):
+            with open(vp, "r") as f: self.vault.update(json.load(f))
+        
+        # Загрузка последнего автосохранения
+        asp = os.path.join(self.vault.get('auto_save_path', self.user_data_dir), "nebula_autosave.py")
+        if os.path.exists(asp):
+            with open(asp, "r", encoding='utf-8') as f: self.saved_code = f.read()
+        else:
+            self.saved_code = "print('Nebula Master Ultra v7 Ready')"
+
+    def save_data(self):
+        with open(os.path.join(self.user_data_dir, "vault_v7.json"), "w") as f:
+            json.dump(dict(self.vault), f)
+
+    def toggle_helper(self):
+        s = self.root.ids.s_helper
+        tx = 0.85 if s.pos_hint["center_x"] > 1 else 1.5
+        Animation(pos_hint={"center_x": tx}, duration=1, t='out_elastic').start(s)
+
+if __name__ == "__main__":
+    NebulaApp().run()
+    
