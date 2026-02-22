@@ -1,0 +1,54 @@
+name: Build Nebula Ultra APK
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    # Важно: 22.04 — самая стабильная для этих задач
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free Disk Space
+        run: |
+          # Удаляем только самые тяжелые и ненужные папки
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          # Больше никаких манипуляций со SWAP!
+          df -h
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libsqlite3-dev lld python3-dev libffi-dev libssl-dev autoconf automake libtool
+          pip install --upgrade pip
+          pip install "Cython<3.0.0" wheel virtualenv buildozer
+
+      - name: Build with Buildozer
+        run: |
+          export PATH=$PATH:~/.local/bin
+          # Ограничиваем память Gradle, чтобы он не конфликтовал с системой
+          export GRADLE_OPTS="-Xmx4g -Dorg.gradle.daemon=false"
+          
+          # Очистка локальных локов перед билдом
+          rm -rf .buildozer/
+          
+          # Запуск сборки
+          yes | buildozer -v android debug
+        env:
+          BUILDOZER_ALLOW_ORG_NAME_START: 1
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nebula-V7-Final-Build
+          path: bin/*.apk
+          
