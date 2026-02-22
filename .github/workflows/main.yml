@@ -1,0 +1,46 @@
+name: Build Nebula PRO
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: System Deps
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential git python3 python3-dev ffmpeg \
+          libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+          libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev \
+          zlib1g-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+          libsqlite3-dev sqlite3 bzip2 libbz2-dev libssl-dev openssl \
+          libgdbm-dev libgdbm-compat-dev liblzma-dev libreadline-dev \
+          uuid-dev libffi-dev tk-dev autoconf automake libtool curl
+          
+          pip install --user --upgrade buildozer Cython
+
+      - name: Build with Buildozer
+        run: |
+          buildozer android debug
+        continue-on-error: false
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nebula_Master_APK
+          path: bin/*.apk
+
+      - name: Terminal Output Link
+        run: |
+          echo "===================================================="
+          echo "🔥 BUILD SUCCESSFUL!"
+          echo "📥 DOWNLOAD HERE: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "===================================================="
+          
