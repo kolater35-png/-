@@ -1,0 +1,48 @@
+name: Build Nebula Ultra APK
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04 # Используем более стабильную 22.04 вместо 24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libsqlite3-dev lld python3-dev libffi-dev libssl-dev autoconf automake libtool
+          pip install --upgrade pip
+          # Фиксируем версии, чтобы не было конфликтов
+          pip install "Cython<3.0.0" wheel virtualenv
+          pip install git+https://github.com/kivy/buildozer.git
+
+      - name: Build with Buildozer
+        run: |
+          # Принудительно очищаем старые локи
+          rm -rf .buildozer/
+          export PATH=$PATH:~/.local/bin
+          
+          # Ограничиваем ресурсы Gradle, чтобы он не блокировал файлы
+          export GRADLE_OPTS="-Xmx4g -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1"
+          
+          # Запуск сборки
+          buildozer -v android debug
+        env:
+          # Разрешаем запуск от имени root в контейнере GitHub
+          BUILDOZER_ALLOW_ORG_NAME_START: 1
+          # Указываем Buildozer не использовать глобальные кеши, которые могут быть заняты
+          APP_ANDROID_ACCEPT_SDK_LICENSE: 1
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nebula-Final-Result
+          path: bin/*.apk
