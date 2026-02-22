@@ -1,0 +1,48 @@
+name: Build Nebula Ultra PRO
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Server
+        uses: actions/checkout@v4  # Обновил до v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5 # Обновил до v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Buildozer Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y python3-pip build-essential git python3 python3-dev ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev libgstreamer1.0-gstreamer-lite-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+          sudo apt install -y libsqlite3-dev sqlite3 bzip2 libbz2-dev libssl-dev openssl libgdbm-dev libgdbm-compat-dev liblzma-dev libreadline-dev uuid-dev libffi-dev tk-dev
+          sudo apt install -y libncurses5-dev libncursesw5-dev
+          sudo apt install -y autoconf automake libtool curl
+          pip install --user --upgrade buildozer Cython
+
+      - name: Build with Buildozer
+        run: |
+          buildozer android debug
+        continue-on-error: false
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4  # ВОТ ТУТ БЫЛА ОШИБКА, ТЕПЕРЬ V4
+        with:
+          name: Nebula_Ultra_Package
+          path: bin/*.apk
+
+      - name: Show Download Link
+        run: |
+          echo "=========================================================="
+          echo "🚀 СБОРКА ЗАВЕРШЕНА УСПЕШНО!"
+          echo "📥 СКАЧАТЬ АПК МОЖНО ТУТ:"
+          echo "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "----------------------------------------------------------"
+          echo "Прокрути страницу вниз до раздела 'Artifacts'."
+          echo "=========================================================="
+          
