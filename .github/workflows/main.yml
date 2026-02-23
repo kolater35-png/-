@@ -1,0 +1,50 @@
+name: Build Titan OS Monolith
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Умная загрузка (Кэш) - оптимизирована
+      - name: Cache Buildozer
+        uses: actions/cache@v4
+        with:
+          path: .buildozer
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses6 libncursesw6 cmake libffi-dev libssl-dev build-essential
+          pip install --upgrade pip
+          pip install --user --upgrade "cython<3.0.0" buildozer
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Build APK with Buildozer
+        run: |
+          # Убираем clean, чтобы не ломать пути кэша
+          # Сначала принудительно ставим нужную версию Cython внутри среды
+          pip install "cython<3.0.0"
+          yes | buildozer -v android debug
+        env:
+          BUILDOZER_ALLOW_ORG_NAME_AS_DOMAIN: 1
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NebulaTitan-OS-Debug
+          path: bin/*.apk
+          
