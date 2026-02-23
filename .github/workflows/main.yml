@@ -1,0 +1,46 @@
+name: Build Titan APK
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git ffmpeg libgl1-mesa-dev libgles2-mesa-dev libffi-dev libssl-dev libncurses6 libncursesw6 libtinfo6 cmake zip unzip autoconf libtool pkg-config zlib1g-dev libltdl-dev
+
+      - name: Install Build Tools
+        run: |
+          pip install --upgrade pip
+          pip install "cython<3.0.0" "buildozer==1.5.0" "python-for-android" wheel
+
+      - name: Build APK
+        run: |
+          rm -rf .buildozer
+          buildozer -v android debug
+        env:
+          APP_ANDROID_ACCEPT_SDK_LICENSE: 1
+          BUILDOZER_ALLOW_ORG_NAME_AS_DOMAIN: 1
+          P4A_PATH: /home/runner/.local/bin/p4a
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NebulaTitan-Final
+          path: bin/*.apk
+          
