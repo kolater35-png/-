@@ -1,0 +1,23 @@
+name: Build Titan APK
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build with Buildozer
+        uses: ArtemSerebrenninkov/buildozer-action@v1
+        with:
+          buildozer_version: master
+          python_version: 3.11
+          command: buildozer android debug
+          repository_display_name: NebulaTitan
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v2
+        with:
+          name: NebulaTitan-Debug-APK
+          path: bin/*.apk
+          
