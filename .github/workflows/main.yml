@@ -1,0 +1,33 @@
+name: Build Titan APK
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          # Убрали проблемный lite-пакет, добавили стандартные стабильные библиотеки
+          sudo apt install -y python3-pip build-essential git python3 python3-dev ffmpeg \
+          libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+          libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev \
+          libgstreamer1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good
+          
+          pip3 install --user --upgrade buildozer cython virtualenv
+
+      - name: Build with Buildozer
+        run: |
+          # Используем 'yes |' чтобы автоматически соглашаться со всеми лицензиями внутри билда
+          yes | buildozer android debug
+        env:
+          APP_ANDROID_ACCEPT_SDK_LICENSE: "1"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NebulaTitan-APK
+          path: bin/*.apk
+          
