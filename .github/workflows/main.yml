@@ -1,0 +1,17 @@
+      - name: Install Build Tools
+        run: |
+          pip install --upgrade pip
+          # Устанавливаем всё необходимое, включая саму библиотеку p4a
+          pip install "cython<3.0.0" "buildozer==1.5.0" "python-for-android" wheel
+
+      - name: Build APK
+        run: |
+          # Мы НЕ используем clean, так как папки еще нет. 
+          # Мы просто запускаем сборку.
+          buildozer -v android debug
+        env:
+          APP_ANDROID_ACCEPT_SDK_LICENSE: 1
+          BUILDOZER_ALLOW_ORG_NAME_AS_DOMAIN: 1
+          # Указываем Buildozer использовать системный p4a, если он не найдет свой
+          P4A_PATH: /home/runner/.local/bin/p4a
+          
