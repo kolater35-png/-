@@ -1,0 +1,30 @@
+name: Build Titan APK
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build with Buildozer
+        # Используем проверенный и обновленный экшен
+        uses: MudabbirKhan/buildozer-action@v2
+        with:
+          buildozer_version: master
+          python_version: 3.11
+          command: buildozer android debug
+          # Это поможет избежать проблем с кэшем при первой сборке
+          repository_display_name: NebulaTitan
+
+      - name: Upload APK
+        # Обновлено до v4 (исправляет ошибку депрекации)
+        uses: actions/upload-artifact@v4
+        with:
+          name: NebulaTitan-Debug-APK
+          # Путь к готовому APK в структуре Buildozer
+          path: bin/*.apk
+          # Срок хранения файла (опционально)
+          retention-days: 7
+          
