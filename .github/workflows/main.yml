@@ -1,0 +1,37 @@
+name: Titan OS Self-Healing Build
+on: [push, workflow_dispatch] # Запуск при пуше или вручную
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: System Auto-Fix (Anti-Dependency Error)
+        run: |
+          sudo apt update
+          # Пытаемся установить пакеты. Если libtinfo5 (старая) недоступна, ставим libtinfo6.
+          # Это решает главную проблему сборки Kivy на новых образах Ubuntu.
+          sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libffi-dev libssl-dev libncurses6 libncursesw6 libtinfo6 || sudo apt install -y libtinfo5
+          
+          # Установка критических инструментов сборки
+          pip install --upgrade pip
+          pip install buildozer cython git+https://github.com/kivy/buildozer.git
+
+      - name: Build with Auto-Recovery
+        run: |
+          # Если сборка падает, мы автоматически запускаем 'clean' и пробуем снова один раз.
+          # Это исправляет ошибки 'Broken Pipe' и конфликты кэша.
+          buildozer android debug || (echo "CRITICAL: Build failed. Cleaning cache and retrying..." && buildozer android clean && buildozer android debug)
+
+      - name: Upload Artifact (Your APK)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Titan-OS-V5-Build
+          path: bin/*.apk
+          
