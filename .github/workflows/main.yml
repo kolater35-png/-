@@ -1,0 +1,54 @@
+name: Titan OS Final Build
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04 # Стабильная версия
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Base Systems
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git python3 python3-pip \
+          libffi-dev libssl-dev libsdl2-dev libsdl2-image-dev \
+          libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev \
+          libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev \
+          openjdk-17-jdk unzip wget zip
+
+      - name: Manual SDK Fix
+        run: |
+          # Создаем структуру, которую хочет Buildozer
+          export SDK_PATH=$HOME/.buildozer/android/platform/android-sdk
+          mkdir -p $SDK_PATH/cmdline-tools/latest
+          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip commandlinetools-linux-9477386_latest.zip
+          mv cmdline-tools/* $SDK_PATH/cmdline-tools/latest/
+          
+          # ХИТРОСТЬ: Делаем мост между старым и новым путем
+          mkdir -p $SDK_PATH/tools/bin
+          ln -s $SDK_PATH/cmdline-tools/latest/bin/sdkmanager $SDK_PATH/tools/bin/sdkmanager
+          
+          # Принимаем лицензии
+          yes | $SDK_PATH/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Buildozer Install
+        run: |
+          pip3 install --user --upgrade Cython==0.29.33 buildozer
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Build APK (The Monolith)
+        run: |
+          # Запуск в режиме 'yes', чтобы не было Broken pipe
+          yes | buildozer android debug --verbose
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Titan-OS-Package
+          path: bin/*.apk
