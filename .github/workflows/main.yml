@@ -1,0 +1,55 @@
+name: Core System Generation
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04 # Используем стабильную 22.04 вместо нестабильной новейшей
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: System Hardening
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-pip build-essential git python3 \
+            libffi-dev libssl-dev libsdl2-dev libsdl2-image-dev \
+            libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev \
+            libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev \
+            openjdk-17-jdk unzip wget zip
+
+      - name: Setup Android SDK Tools
+        run: |
+          mkdir -p $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest
+          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip commandlinetools-linux-9477386_latest.zip
+          mv cmdline-tools/* $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/
+          
+          # Настройка путей
+          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+          
+          # Принятие лицензий
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Install Buildozer
+        run: |
+          pip3 install --user --upgrade Cython==0.29.33 buildozer
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Build Monolith
+        run: |
+          # Используем флаг --verbose, чтобы видеть прогресс и не ловить Broken pipe
+          buildozer android debug --verbose
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Titan-OS-Monolith
+          path: bin/*.apk
+          
