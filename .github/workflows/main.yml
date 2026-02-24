@@ -1,0 +1,55 @@
+name: Titan OS Monolith - Production Build
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Core System Generation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Initialization
+        uses: actions/checkout@v4
+
+      - name: 2. Python Environment Setup
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 3. System Hardening (Install Dependencies)
+        run: |
+          sudo apt update
+          sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses6 libncursesw6 cmake libffi-dev libssl-dev build-essential
+          pip install --upgrade pip
+          pip install --user "cython<3.0.0" buildozer
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: 4. Execution (Clean & Build)
+        run: |
+          # Полная очистка перед стартом для исключения конфликтов
+          rm -rf .buildozer
+          
+          # Настройка переменных окружения для Android SDK/NDK
+          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+          export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk-r25b
+          export PATH=$PATH:$ANDROID_HOME/tools/bin
+          
+          # Автоматическое принятие лицензий (Масштабное решение против Broken Pipe)
+          mkdir -p "$ANDROID_HOME/licenses"
+          echo -e "8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb7434029572b6a46e1d\n24333f8a63b6825ea9c5573f83c209535f93093f" > "$ANDROID_HOME/licenses/android-sdk-license"
+          echo -e "84831b9409646a918e30573bab4c9c91346d8abd\n50466d5a477d0ccedf01612086201c189c1b378c" > "$ANDROID_HOME/licenses/android-sdk-preview-license"
+          
+          # Запуск сборки (без yes |, так как лицензии уже внедрены)
+          buildozer -v android debug
+        env:
+          BUILDOZER_ALLOW_ORG_NAME_AS_DOMAIN: 1
+
+      - name: 5. Artifact Delivery
+        uses: actions/upload-artifact@v4
+        with:
+          name: Titan-OS-Monolith-Build
+          path: bin/*.apk
+          
