@@ -1,0 +1,52 @@
+name: Titan Immortal Build
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Buildozer
+        uses: actions/cache@v4
+        with:
+          path: .buildozer
+          key: buildozer-v1-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' # Чуть свежее для стабильности numpy
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev libsqlite3-dev
+          pip install --upgrade pip
+          pip install buildozer "cython<3.0" # Оптимально для Kivy
+
+      - name: Build with Buildozer
+        run: |
+          # ВАЖНЫЙ ФИКС: исправляем права доступа, чтобы не было ошибок chown
+          sudo chown -R $USER:$USER .
+          
+          # Предварительная настройка и принятие лицензий
+          yes | buildozer android debug || true
+          
+          # Основной билд
+          buildozer -v android debug
+        env:
+          # Переменная, которая помогает Buildozer не тупить в CI
+          CI: true
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Titan-App
+          path: bin/*.apk
