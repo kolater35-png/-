@@ -1,0 +1,98 @@
+Name: Titan OS Build Engine
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      # Кэширование Buildozer — экономит до 10-15 минут при повторных сборках
+      - name: Cache Buildozer Dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            git \
+            python3-dev \
+            ffmpeg \
+            libsdl2-dev \
+            libsdl2-image-dev \
+            libsdl2-mixer-dev \
+            libsdl2-ttf-dev \
+            libportmidi-dev \
+            libswscale-dev \
+            libavformat-dev \
+            libavcodec-dev \
+            zlib1g-dev \
+            libgstreamer1.0-dev \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            libsqlite3-dev \
+            sqlite3 \
+            bzip2 \
+            libbz2-dev \
+            libssl-dev \
+            openssl \
+            libgdbm-dev \
+            libncursesw5-dev \
+            libreadline-gplv2-dev \
+            libtk8.6-dev \
+            libdb5.3-dev \
+            libexpat1-dev \
+            lzma \
+            liblzma-dev \
+            libffi-dev \
+            uuid-dev \
+            ant \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            cmake \
+            openjdk-17-jdk \
+            zip \
+            unzip
+
+      - name: Install Buildozer and Cython
+        run: |
+          pip install --upgrade pip
+          pip install Cython==0.29.33 buildozer
+
+      - name: Build with Buildozer
+        run: |
+          # Используем 'yes', чтобы автоматически принимать лицензии Android SDK
+          yes | buildozer -v android debug
+        env:
+          # Параметры для стабильной сборки в облаке
+          BUILDOZER_ALLOW_ORG_NAME_AS_DOMAIN: 1
+          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Titan-OS-Debug-APK
+          path: bin/*.apk
